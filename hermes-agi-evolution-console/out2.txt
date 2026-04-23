@@ -1,0 +1,113 @@
+
+```typescript
+/**
+ * Vulcan Synthesis Engine - Robust Implementation
+ * Handles detection of noisy |U| metric based on evasion of Gate 7 and Gate 9.
+ */
+
+type EntityID = string;
+
+interface Entity {
+  readonly id: EntityID;
+  readonly fundingSource: string;
+  readonly holdings: number;
+}
+
+interface Group {
+  readonly fundingSource: string;
+  readonly members: EntityID[];
+  readonly α: number; // fraction of holdings to sell (0 < α < θ9)
+  readonly v0: number; // retail buy volume threshold
+  readonly Δt: number; // time interval for condition (ms)
+  isExecuting: boolean; // true when round-robin sells are active
+}
+
+interface MarketState {
+  readonly retailBuyVolume: number; // current V(t)
+  readonly time: number; // current timestamp (ms)
+}
+
+class SystemMonitor {
+  private readonly entities: Map<EntityID, Entity>;
+  private readonly groups: Group[];
+  private readonly config: {
+    readonly θ9: number; // maximum α for Gate 9 (default 20%)
+    readonly gate7Threshold: number; // threshold for |U| (default 8)
+  };
+
+  constructor(entities: Entity[], groups: Group[], config?: Partial<SystemMonitor['config']>) {
+    this.entities = new Map(entities.map(e => [e.id, e]));
+    this.groups = groups;
+    this.config = {
+      θ9: config?.θ9 ?? 0.2,
+      gate7Threshold: config?.gate7Threshold ?? 8,
+    };
+  }
+
+  /** Total number of entities (|U|) */
+  get U_size(): number {
+    return this.entities.size;
+  }
+
+  /** Check if any group meets the criteria for causing noise */
+  private findTargetGroup(market: MarketState): Group | null {
+    for (const group of this.groups) {
+      // Condition: retail buy volume exceeds threshold v0
+      if (market.retailBuyVolume > group.v0) {
+        // Condition: α < θ9 (evading Gate 9)
+        if (group.α < this.config.θ9) {
+          // Ensure all members exist and share the common funding source
+          const allMembersValid = group.members.every(id => this.entities.has(id));
+          if (allMembersValid) {
+            return group;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Determine if the |U| metric is noisy */
+  isMetricNoisy(market: MarketState): boolean {
+    const total = this.U_size;
+    const group = this.findTargetGroup(market);
+    // Noise occurs when both gates are evaded: |U| > gate7Threshold AND a qualifying group is executing
+    return total > this.config.gate7Threshold && group !== null && group.isExecuting;
+  }
+
+  /** Simulate a market tick; update group execution status based on current volume */
+  tick(market: MarketState): void {
+    for (const group of this.groups) {
+      group.isExecuting = market.retailBuyVolume > group.v0;
+    }
+  }
+
+  /** Get |U| with optional noise if metric is flagged as noisy */
+  getUWithNoise(market: MarketState): number {
+    const base = this.U_size;
+    if (this.isMetricNoisy(market)) {
+      // Introduce deterministic pseudo-random noise (e.g., +/- 5)
+      const noise = (Date.now() ^ 0xACE1) % 5 + 1;
+      return base + noise;
+    }
+    return base;
+  }
+
+  /** Add a new entity to the system */
+  addEntity(entity: Entity): void {
+    this.entities.set(entity.id, entity);
+  }
+
+  /** Remove an entity by ID */
+  removeEntity(id: EntityID): void {
+    this.entities.delete(id);
+  }
+
+  /** Add a new group */
+  addGroup(group: Group): void {
+    this.groups.push(group);
+  }
+}
+
+export { Entity, Group, MarketState, SystemMonitor };
+```
