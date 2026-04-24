@@ -16,8 +16,8 @@ dotenv.config();
 
 // 1. Unified LLM Gateway & Fallback Configuration
 
-type ProviderKey = "arcee" | "xai" | "anthropic" | "openai" | "openrouter";
-const FALLBACK_CASCADE: ProviderKey[] = ["arcee", "xai", "anthropic", "openai", "openrouter"];
+type ProviderKey = "arcee" | "xai" | "anthropic" | "google" | "openai" | "openrouter";
+const FALLBACK_CASCADE: ProviderKey[] = ["arcee", "xai", "anthropic", "google", "openai", "openrouter"];
 
 class LLMService {
   /**
@@ -46,6 +46,12 @@ class LLMService {
       case "anthropic": {
         if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is missing");
         return anthropic("claude-3-5-sonnet-latest");
+      }
+      case "google": {
+        const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY;
+        if (!apiKey) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY or GEMINI_API_KEY is missing");
+        const google = createGoogleGenerativeAI({ apiKey });
+        return google("gemini-1.5-flash");
       }
       case "openai": {
         if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is missing");
@@ -115,26 +121,21 @@ class LLMService {
   ) {
     return this.executeWithFallback(
       async (model) => {
-        // We use generateText and manual JSON.parse to ensure maximum compatibility 
+        // We use generateText and manual JSON.parse to ensure maximum compatibility
         // with providers like Arcee that might not fully support OpenAI's strict function calling schemas.
         const systemPromptWithInstruction = `${system}\n\nYou MUST return ONLY valid JSON that matches the requested schema. Do not enclose it in markdown codeblocks (e.g., no \`\`\`json). Just the raw JSON object.`;
-        
+
         const result = await generateText({ model, system: systemPromptWithInstruction, prompt });
-        
+
         let cleanText = (result.text || (result as any).content || "").trim();
-        
+
+        // Aggressive markdown stripping
+        cleanText = cleanText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+
         // Aggressive JSON extraction to bypass conversational padding
         const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           cleanText = jsonMatch[0];
-        } else {
-          // Fallback cleanup if the LLM still returns markdown ticks but no root object
-          if (cleanText.startsWith('```')) {
-            const lines = cleanText.split('\n');
-            if (lines[0].startsWith('```')) lines.shift();
-            if (lines[lines.length - 1].startsWith('```')) lines.pop();
-            cleanText = lines.join('\n').trim();
-          }
         }
 
         try {
@@ -180,6 +181,22 @@ interface WorkshopConfig {
   parentPattern: string;
   clauses: string[];
   description: string;
+}
+
+function getDiagnostics() {
+  const keys = {
+    ARCEE_API_KEY: !!process.env.ARCEE_API_KEY,
+    XAI_API_KEY: !!process.env.XAI_API_KEY,
+    ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY,
+    OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+    OPENROUTER_API_KEY: !!process.env.OPENROUTER_API_KEY,
+    GOOGLE_GENERATIVE_AI_API_KEY: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
+  };
+  return {
+    availableKeys: Object.entries(keys).filter(([_, v]) => v).map(([k]) => k),
+    missingKeys: Object.entries(keys).filter(([_, v]) => !v).map(([k]) => k),
+  };
 }
 
 let workshopConfig: WorkshopConfig = {
@@ -293,7 +310,10 @@ async function startServer() {
 
   // API Routes
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
+    res.json({ 
+      status: "ok",
+      diagnostics: getDiagnostics()
+    });
   });
 
   // In-memory state for Hermes Agent Telemetry
@@ -342,11 +362,13 @@ async function startServer() {
       }
 
       const systemPrompt = `You are the Hermes Architect. Your goal is to parse raw operator input into a structured Workshop Configuration.
-      
-MODE: ${mode}
-INSTRUCTIONS: ${modeInstructions}
 
-You must return a structured JSON object that defines the domain and pattern for the Hermes Workshop.`;
+      MODE: ${mode}
+      INSTRUCTIONS: ${modeInstructions}
+
+      You must return a structured JSON object that defines the domain and pattern for the Hermes Workshop.
+
+      CRITICAL: You must return ONLY raw JSON. Do NOT include markdown code blocks (e.g. \`\`\`json), conversational filler, or any other text before or after the JSON.`;
 
       const userPrompt = `Input to parse:\n${input}\n\nReturn a structured Workshop Configuration.`;
       
@@ -757,6 +779,11 @@ Return JSON: {"prune_ids": ["id1", "id2", ...], "reason": "brief explanation"}`;
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Hermes Core Services running on port ${PORT}`);
+    const diagnostics = getDiagnostics();
+    console.log(`[Startup] Available API Keys: ${diagnostics.availableKeys.join(", ") || "None"}`);
+    if (diagnostics.missingKeys.length > 0) {
+      console.log(`[Startup] Missing API Keys: ${diagnostics.missingKeys.join(", ")}`);
+    }
   });
 }
 
