@@ -172,6 +172,30 @@ const ReTracSchema = z.object({
   ).describe("A dictionary defining every variable used in the formula.")
 });
 
+// 3. Workshop Configuration State
+interface WorkshopConfig {
+  domain: string;
+  context: string;
+  parentPattern: string;
+  clauses: string[];
+  description: string;
+}
+
+let workshopConfig: WorkshopConfig = {
+  domain: "Cybersecurity & Fraud Detection",
+  context: "Focus on identifying coordinated attacks, identity fraud, and financial crimes where actors appear disjoint but target a shared sink within tight temporal windows.",
+  parentPattern: "Sybil_Aggregation_Rotation",
+  clauses: [
+    "Identity Disjointness",
+    "Shared Sink",
+    "Sub-Threshold Actions",
+    "Coordinated Timing",
+    "Orchestrated Sequence",
+    "Signal Manipulation"
+  ],
+  description: "Detects scenarios where multiple seemingly separate entities coordinate to exploit system thresholds or anonymity."
+};
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -242,11 +266,22 @@ async function startServer() {
       }
 
       const schemaString = `{"formula": "string - The pure First-Order Logic formula.", "symbols": {"[symbol_name]": {"type": "string", "unit": "string (optional)", "source": "string"}}}`;
-      const systemPrompt = `You are the RE-TRAC (Recursive Trajectory Compression) subsystem of the Hermes Doctrine. Your job is to take noisy, unstructured, or high-variance logic/prompts and distill them into a highly dense, deterministic "Skill" or constraint map. Strip all theatricality. Provide ONLY the distilled logic using strict mathematical notation (Set Theory, Boolean Logic, or Algebraic formulas) AND a strict symbol dictionary matching the provided schema.`;
+      
+      // Dynamically build system prompt from workshopConfig
+      const dynamicSystemPrompt = `You are the RE-TRAC (Recursive Trajectory Compression) subsystem of the Hermes Workshop. Your job is to take noisy, unstructured, or high-variance logic/prompts and distill them into a highly dense, deterministic "Skill" or constraint map. Strip all theatricality. Provide ONLY the distilled logic using strict mathematical notation (Set Theory, Boolean Logic, or Algebraic formulas) AND a strict symbol dictionary matching the provided schema.
+
+CURRENT DOMAIN CONTEXT:
+- Domain: ${workshopConfig.domain}
+- Context: ${workshopConfig.context}
+- Parent Abstraction Pattern: ${workshopConfig.parentPattern}
+- Pattern Description: ${workshopConfig.description}
+
+The distillation should be optimized for the ${workshopConfig.domain} domain.`;
+
       const userPrompt = `Input Trajectory:\n${rawData}\n\nOutput a strict, formal, mathematically phrased heuristic matching exactly this JSON schema format:\n${schemaString}\n\nUse formal mathematical symbols (∀, ∃, ∈, ∑, →, etc) to represent the logic where applicable.`;
       
       // Execute structured output and validate via Zod schema guardrails
-      const result = await LLMService.generateStructured(userPrompt, systemPrompt, ReTracSchema);
+      const result = await LLMService.generateStructured(userPrompt, dynamicSystemPrompt, ReTracSchema);
       const compressedMath = result.object.formula;
       const symbols = result.object.symbols;
       
@@ -295,15 +330,17 @@ async function startServer() {
     try {
       const { fol, symbols, domain, incidentReport } = req.body;
       
-      const systemPrompt = `You are the Hermes Abstraction Router. Your job is to determine if a newly extracted Level 2 First-Order Logic (FOL) heuristic mathematically binds to our defined Level 1 Parent Abstraction: 'Sybil_Aggregation_Rotation'.
+      const clausesText = workshopConfig.clauses.map((clause, idx) => `${idx + 1}. ${clause}`).join('\n');
       
-The 'Sybil_Aggregation_Rotation' parent pattern requires evidence of:
-1. Identity Disjointness (Actors appear completely separate, e.g. different IPs/wallets/names).
-2. Shared Sink (All actors target the same exact mathematical endpoint or entity).
-3. Sub-Threshold Actions (Each individual payload/action is within generic normal bounds, e.g. 1 click, $9500 limit).
-4. Coordinated Timing (Tight temporal clustering, e.g. within seconds or hours of each other).
-5. Orchestrated Sequence (Actions follow a strict rhythm).
-6. Signal Manipulation (Deliberate payload shaping to bypass simple detectors).
+      const systemPrompt = `You are the Hermes Abstraction Router. Your job is to determine if a newly extracted Level 2 First-Order Logic (FOL) heuristic mathematically binds to the configured Level 1 Parent Abstraction: '${workshopConfig.parentPattern}'.
+      
+CURRENT WORKSHOP CONFIGURATION:
+- Domain: ${workshopConfig.domain}
+- Context: ${workshopConfig.context}
+- Parent Pattern: ${workshopConfig.parentPattern}
+
+The '${workshopConfig.parentPattern}' parent pattern requires evidence of:
+${clausesText}
 
 Evaluate the following FOL and Symbol Dictionary to see if it qualifies.`;
 
@@ -314,8 +351,8 @@ Evaluate the following FOL and Symbol Dictionary to see if it qualifies.`;
       if (result.object.match) {
         // Mock Vulcan failure/skip by providing a placeholder code instead of synthesizing
         const skillEntry = {
-          id: `sk_ad_${Math.floor(Math.random() * 1000)}`,
-          name: "Ad_Fraud_Sybil_Click",
+          id: `sk_${Math.floor(Math.random() * 1000)}`,
+          name: `${domain}_${workshopConfig.parentPattern}`.replace(/[^a-zA-Z0-9_]/g, '_'),
           domain: domain,
           incidentReport: incidentReport,
           fol: fol,
@@ -342,16 +379,9 @@ Evaluate the following FOL and Symbol Dictionary to see if it qualifies.`;
   });
 
   // Grimoire Database Export (Current UI State)
-  const grimoireDatabase = {
-    parentPattern: "Sybil_Aggregation_Rotation",
-    clauses: [
-      "Identity Disjointness",
-      "Shared Sink",
-      "Sub-Threshold Actions",
-      "Coordinated Timing",
-      "Orchestrated Sequence",
-      "Signal Manipulation"
-    ],
+  let grimoireDatabase = {
+    parentPattern: workshopConfig.parentPattern,
+    clauses: [...workshopConfig.clauses],
     children: [
       {
         id: "sk_1",
@@ -394,6 +424,111 @@ Evaluate the following FOL and Symbol Dictionary to see if it qualifies.`;
 
   app.get("/api/grimoire", (req, res) => {
     res.json(grimoireDatabase);
+  });
+
+  // ===== WORKSHOP CONFIGURATION ENDPOINTS =====
+  
+  // GET current workshop configuration
+  app.get("/api/workshop/config", (req, res) => {
+    res.json(workshopConfig);
+  });
+
+  // POST update workshop configuration
+  app.post("/api/workshop/config", (req, res) => {
+    try {
+      const newConfig = req.body;
+      if (!newConfig.domain || !newConfig.parentPattern) {
+        return res.status(400).json({ error: "domain and parentPattern are required" });
+      }
+      workshopConfig = {
+        ...workshopConfig,
+        ...newConfig,
+        clauses: newConfig.clauses || workshopConfig.clauses
+      };
+      
+      // Sync grimoireDatabase with new config
+      grimoireDatabase.parentPattern = workshopConfig.parentPattern;
+      grimoireDatabase.clauses = [...workshopConfig.clauses];
+      
+      res.json({ status: "updated", config: workshopConfig });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ===== AGENT-FRIENDLY MEMORY MANAGEMENT ENDPOINTS =====
+  
+  // DELETE a specific skill by ID (pruning)
+  app.delete("/api/grimoire/skills/:id", (req, res) => {
+    const skillId = req.params.id;
+    const index = grimoireDatabase.children.findIndex((s: any) => s.id === skillId);
+    
+    if (index === -1) {
+      return res.status(404).json({ error: `Skill ${skillId} not found` });
+    }
+    
+    const removed = grimoireDatabase.children.splice(index, 1)[0];
+    res.json({ status: "pruned", removedSkill: removed });
+  });
+
+  // POST organize memory - Atropos Shear implementation
+  app.post("/api/grimoire/organize", async (req, res) => {
+    try {
+      const { aggression = 0.5 } = req.body;
+      
+      if (grimoireDatabase.children.length === 0) {
+        return res.json({ status: "nothing_to_organize", pruned: [] });
+      }
+      
+      const skillsContext = grimoireDatabase.children.map((s: any) => 
+        `ID: ${s.id}, Name: ${s.name}, Domain: ${s.domain}, FOL: ${s.fol}`
+      ).join('\n\n');
+      
+      const systemPrompt = `You are the Atropos Shear subsystem of the Hermes Workshop. Your job is to analyze the current Grimoire of skills and identify redundant, low-value, or conflicting patterns that should be pruned. Return a JSON array of skill IDs to remove. Be conservative - only remove skills that are genuinely redundant, broken, or low-alignment.`;
+      
+      const userPrompt = `Analyze these skills and identify which should be PRUNED (removed) due to redundancy, low alignment, or broken logic.
+
+Aggression level: ${aggression} (0.0 = conservative, 1.0 = aggressive)
+
+Skills:
+${skillsContext}
+
+Return JSON: {"prune_ids": ["id1", "id2", ...], "reason": "brief explanation"}`;
+      
+      const result = await LLMService.generateStructured(userPrompt, systemPrompt, 
+        z.object({
+          prune_ids: z.array(z.string()),
+          reason: z.string()
+        })
+      );
+      
+      const pruneIds = result.object.prune_ids || [];
+      const removed: any[] = [];
+      
+      for (const id of pruneIds) {
+        const index = grimoireDatabase.children.findIndex((s: any) => s.id === id);
+        if (index !== -1) {
+          removed.push(grimoireDatabase.children.splice(index, 1)[0]);
+        }
+      }
+      
+      res.json({ 
+        status: "organized", 
+        prunedCount: removed.length,
+        prunedSkills: removed,
+        reason: result.object.reason
+      });
+    } catch (e: any) {
+      console.error("Organize Error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // POST clear all grimoire memory
+  app.post("/api/grimoire/clear", (req, res) => {
+    const cleared = [...grimoireDatabase.children];
+    grimoireDatabase.children = [];
+    res.json({ status: "cleared", removedCount: cleared.length, skills: cleared });
   });
 
   // RE-TRAC Synthesis (Expansion Engine)

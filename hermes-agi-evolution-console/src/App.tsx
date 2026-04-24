@@ -5,6 +5,7 @@ import { Dashboard } from './components/Dashboard';
 import { KnowledgeHub } from './components/KnowledgeHub';
 import { TrainingPod } from './components/TrainingPod';
 import { SkillGrimoire } from './components/SkillGrimoire';
+import { WorkshopView } from './components/WorkshopView';
 import { SystemMetrics, EvolutionStage, ViewMode } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -102,6 +103,11 @@ export default function App() {
           {activeView === 'GRIMOIRE' && (
             <div className="flex-1 min-h-0 overflow-hidden p-4 md:p-8 flex flex-col">
               <SkillGrimoire />
+            </div>
+          )}
+          {activeView === 'WORKSHOP' && (
+            <div className="flex-1 overflow-y-auto">
+              <WorkshopView />
             </div>
           )}
         </main>
