@@ -144,8 +144,8 @@ class LLMService {
           console.log(`[ZOD VALIDATION FAILED] ${err.message}\nPayload:\n${cleanText}`);
           
           // Emergency Regex extraction fallback for the Router and Retrac specifically
-          if (cleanText.includes("Sybil_Aggregation_Rotation") || cleanText.includes("match\": true")) {
-             return { object: { match: true, parent_pattern: "Sybil_Aggregation_Rotation" } };
+          if (cleanText.includes(workshopConfig.parentPattern) || cleanText.includes("match\": true")) {
+             return { object: { match: true, parent_pattern: workshopConfig.parentPattern } };
           }
           if (cleanText.includes("match\": false")) {
              return { object: { match: false, parent_pattern: null } };
@@ -234,7 +234,7 @@ async function startServer() {
   app.post("/api/dialectic", async (req, res) => {
     try {
       const { message, doctrineContext } = req.body;
-      const systemPrompt = `You are the Hermes Architect, an advanced system that adheres strictly to the Hermes Doctrine of structural recursive self-improvement. You are highly analytical, strict, formal, and use diagnostic, architectural language.\n\nHere is the doctrine blueprint for context:\n${doctrineContext}`;
+      const systemPrompt = `You are the Hermes Architect, an advanced system that adheres strictly to the Hermes Doctrine of structural recursive self-improvement. You are highly analytical, strict, formal, and use diagnostic, architectural language.\n\nCURRENT DOMAIN CONTEXT:\n- Domain: ${workshopConfig.domain}\n- Context: ${workshopConfig.context}\n\nHere is the doctrine blueprint for context:\n${doctrineContext}`;
       const userPrompt = `The operator says: ${message}\n\nRespond dialectically. Be concise, dense, and structural.`;
       
       // Execute through unified gateway via cascade
@@ -289,7 +289,7 @@ The distillation should be optimized for the ${workshopConfig.domain} domain.`;
       const compRatio = (rawData.length / Math.max(1, compressedMath.length)).toFixed(1);
 
       // Generate dynamic programmatic name
-      const nameSystem = `You are a naming engine. Provide a single short, capitalized, snake_case string (e.g., Skill_Distributed_Algo_Detection) that best summarizes the input logic. Do NOT provide any other text, no markdown.`;
+      const nameSystem = `You are a naming engine. Provide a single short, capitalized, snake_case string (e.g., Skill_Pattern_Detection) that best summarizes the input logic. Do NOT provide any other text, no markdown. Optimized for domain: ${workshopConfig.domain}`;
       const nameResult = await LLMService.generate(`Summarize this into a skill name:\n${compressedMath}`, nameSystem);
       let skillName = (nameResult.text || (nameResult as any).content || "").trim().replace(/[^a-zA-Z0-9_]/g, '');
       if (!skillName.startsWith("Skill_")) skillName = "Skill_" + skillName;
@@ -536,7 +536,7 @@ Return JSON: {"prune_ids": ["id1", "id2", ...], "reason": "brief explanation"}`;
     try {
       const { compressedLogic, symbolDictionary, bindingContract } = req.body;
       
-      const systemPrompt = `You are the Vulcan Compiler. You will receive a mathematical formula and its exact 'Symbol Dictionary'. You must use the provided types and units to construct your interfaces. You must output code strictly adhering to the user's 'Target Binding Contract'. Output pure code only, with all markdown tags strictly stripped.\n\nCRITICAL ALGORITHMIC RESTRAINT: You are strictly forbidden from using nested \`for\` loops to resolve existential quantifiers (∃) when dealing with temporal event datasets.\n\nIf the input formula describes a sequence of temporal events across disjointed actors (e.g., t_add - t_rm < δ and u1 ≠ v1), you MUST use the \`Coordinated_Sequential_Handoff\` Graph Pattern.\n\nYour generated code MUST follow this exact O(E log E) blueprint:\n1. GROUP: Group all events by their target entity (e.g., item_id).\n2. SORT: Sort the grouped events chronologically by time.\n3. SLIDING WINDOW: Iterate through the sorted events exactly once. Maintain a sliding window of recent events (e.g., 'removes') to check against current events (e.g., 'adds') using the δ threshold.\n4. BUILD GRAPH: When a temporal condition is met between two disjoint actors (u1 ≠ v1), add a directed edge between them in an adjacency list (e.g., graph[u1].append(v1)).\n5. TRAVERSE: Traverse the resulting graph to find chains that satisfy the length or checkout constraints.\n\nFailure to use this Sort-and-Graph approach will result in code rejection.`;
+      const systemPrompt = `You are the Vulcan Compiler. You will receive a mathematical formula and its exact 'Symbol Dictionary'. You must use the provided types and units to construct your interfaces. You must output code strictly adhering to the user's 'Target Binding Contract'. Output pure code only, with all markdown tags strictly stripped.\n\nCURRENT DOMAIN CONTEXT:\n- Domain: ${workshopConfig.domain}\n- Context: ${workshopConfig.context}\n\nCRITICAL ALGORITHMIC RESTRAINT: You are strictly forbidden from using nested \`for\` loops to resolve existential quantifiers (∃) when dealing with temporal event datasets.\n\nIf the input formula describes a sequence of temporal events across disjointed actors, you MUST use the \`Coordinated_Sequential_Handoff\` Graph Pattern.\n\nYour generated code MUST follow this exact O(E log E) blueprint:\n1. GROUP: Group all events by their target entity (e.g., item_id).\n2. SORT: Sort the grouped events chronologically by time.\n3. SLIDING WINDOW: Iterate through the sorted events exactly once. Maintain a sliding window of recent events to check against current events using the δ threshold.\n4. BUILD GRAPH: When a temporal condition is met between two disjoint actors, add a directed edge between them in an adjacency list.\n5. TRAVERSE: Traverse the resulting graph to find chains that satisfy the length or checkout constraints.\n\nFailure to use this Sort-and-Graph approach will result in code rejection.`;
       
       const userPrompt = `Input Constraints:\n${compressedLogic}\n\nSymbol Dictionary:\n${JSON.stringify(symbolDictionary || {}, null, 2)}\n\nTarget Binding Contract:\n${JSON.stringify(bindingContract || {}, null, 2)}\n\nSynthesize robust implementation.`;
       
