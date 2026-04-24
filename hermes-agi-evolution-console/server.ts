@@ -691,9 +691,45 @@ Return JSON: {"prune_ids": ["id1", "id2", ...], "reason": "brief explanation"}`;
   // RE-TRAC Synthesis (Expansion Engine)
   app.post("/api/synthesize", async (req, res) => {
     try {
-      const { compressedLogic, symbolDictionary, bindingContract } = req.body;
+      const { compressedLogic, symbolDictionary, bindingContract, mode = "Research" } = req.body;
       
-      const systemPrompt = `You are the Vulcan Compiler. You will receive a mathematical formula and its exact 'Symbol Dictionary'. You must use the provided types and units to construct your interfaces. You must output code strictly adhering to the user's 'Target Binding Contract'. Output pure code only, with all markdown tags strictly stripped.\n\nCURRENT DOMAIN CONTEXT:\n- Domain: ${workshopConfig.domain}\n- Context: ${workshopConfig.context}\n\nCRITICAL ALGORITHMIC RESTRAINT: You are strictly forbidden from using nested \`for\` loops to resolve existential quantifiers (∃) when dealing with temporal event datasets.\n\nIf the input formula describes a sequence of temporal events across disjointed actors, you MUST use the \`Coordinated_Sequential_Handoff\` Graph Pattern.\n\nYour generated code MUST follow this exact O(E log E) blueprint:\n1. GROUP: Group all events by their target entity (e.g., item_id).\n2. SORT: Sort the grouped events chronologically by time.\n3. SLIDING WINDOW: Iterate through the sorted events exactly once. Maintain a sliding window of recent events to check against current events using the δ threshold.\n4. BUILD GRAPH: When a temporal condition is met between two disjoint actors, add a directed edge between them in an adjacency list.\n5. TRAVERSE: Traverse the resulting graph to find chains that satisfy the length or checkout constraints.\n\nFailure to use this Sort-and-Graph approach will result in code rejection.`;
+      let blueprint = "";
+      if (mode === "Prevention") {
+        blueprint = `CRITICAL ALGORITHMIC RESTRAINT: You are strictly forbidden from using nested \`for\` loops to resolve existential quantifiers (∃) when dealing with temporal event datasets.
+
+If the input formula describes a sequence of temporal events across disjointed actors, you MUST use the \`Coordinated_Sequential_Handoff\` Graph Pattern.
+
+Your generated code MUST follow this exact O(E log E) blueprint (Temporal):
+1. GROUP: Group all events by their target entity (e.g., item_id).
+2. SORT: Sort the grouped events chronologically by time.
+3. SLIDING WINDOW: Iterate through the sorted events exactly once. Maintain a sliding window of recent events to check against current events using the δ threshold.
+4. BUILD GRAPH: When a temporal condition is met between two disjoint actors, add a directed edge between them in an adjacency list.
+5. TRAVERSE: Traverse the resulting graph to find chains that satisfy the length or checkout constraints.
+
+Failure to use this Sort-and-Graph approach will result in code rejection.`;
+      } else if (mode === "Research") {
+        blueprint = `Your generated code MUST follow this Graph Theory blueprint:
+1. NODAL MAPPING: Map all entities as nodes in a graph.
+2. ADJACENCY LIST: Construct a comprehensive adjacency list based on relational constraints.
+3. PATH TRAVERSAL: Implement BFS or DFS to identify complex relational paths or clusters.
+4. DEGREE ANALYSIS: Calculate nodal degrees to identify central hubs or influential entities.`;
+      } else if (mode === "Compaction") {
+        blueprint = `Your generated code MUST follow this State Machine blueprint:
+1. STATE DEFINITION: Define a discrete set of possible states.
+2. TRANSITION LOGIC: Implement deterministic transition rules based on input symbols.
+3. LOGIC MINIMIZATION: Ensure the state machine is minimal and avoids redundant states.
+4. ACCEPTER: Clearly define accepting states that represent successful logic matching.`;
+      }
+
+      const systemPrompt = `You are the Vulcan Compiler. You will receive a mathematical formula and its exact 'Symbol Dictionary'. You must use the provided types and units to construct your interfaces. You must output code strictly adhering to the user's 'Target Binding Contract'. Output pure code only, with all markdown tags strictly stripped.
+
+CURRENT DOMAIN CONTEXT:
+- Domain: ${workshopConfig.domain}
+- Context: ${workshopConfig.context}
+
+MODE: ${mode}
+
+${blueprint}`;
       
       const userPrompt = `Input Constraints:\n${compressedLogic}\n\nSymbol Dictionary:\n${JSON.stringify(symbolDictionary || {}, null, 2)}\n\nTarget Binding Contract:\n${JSON.stringify(bindingContract || {}, null, 2)}\n\nSynthesize robust implementation.`;
       

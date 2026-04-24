@@ -139,7 +139,8 @@ export const TrainingPod = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           compressedLogic: compressedOutput,
-          bindingContract
+          bindingContract,
+          mode
         })
       });
       
