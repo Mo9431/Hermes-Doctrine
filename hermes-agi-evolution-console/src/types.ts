@@ -40,3 +40,12 @@ export interface TrajectoryPoint {
   efficiency: number;
   entropy: number;
 }
+
+export type JobStatus = 'waiting' | 'active' | 'completed' | 'failed';
+
+export interface JobResponse {
+  jobId: string;
+  status: JobStatus;
+  result?: any;
+  error?: string;
+}
