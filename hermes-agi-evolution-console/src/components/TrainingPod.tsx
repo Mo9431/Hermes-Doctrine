@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { Cpu, Play, TerminalSquare, Settings2, BarChart2, Save, Rocket, Code2 } from 'lucide-react';
 import { TrajectoryChart } from './TrajectoryChart';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 export const TrainingPod = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
-  const [iteration, setIteration] = useState(0);
-  const [logs, setLogs] = useState<string[]>([]);
-  const [shearRate, setShearRate] = useState(84);
-  const [carThreshold, setCarThreshold] = useState(92);
-  const [targetArchitecture, setTargetArchitecture] = useState<"node-redis" | "python-pandas">("node-redis");
+  const [iteration, setIteration] = useLocalStorage('hermes_pod_iteration', 0);
+  const [logs, setLogs] = useLocalStorage<string[]>('hermes_pod_logs', []);
+  const [shearRate, setShearRate] = useLocalStorage('hermes_pod_shear_rate', 84);
+  const [carThreshold, setCarThreshold] = useLocalStorage('hermes_pod_car_threshold', 92);
+  const [targetArchitecture, setTargetArchitecture] = useLocalStorage<"node-redis" | "python-pandas" | "pure-fol" | "pytorch-hybrid">('hermes_pod_architecture', "node-redis");
+  const [mode, setMode] = useLocalStorage<"Prevention" | "Research" | "Compaction">('hermes_pod_mode', "Research");
   
-  const [rawInput, setRawInput] = useState('');
-  const [compressedOutput, setCompressedOutput] = useState('');
-  const [synthesizedCode, setSynthesizedCode] = useState('');
+  const [rawInput, setRawInput] = useLocalStorage('hermes_pod_raw_input', '');
+  const [compressedOutput, setCompressedOutput] = useLocalStorage('hermes_pod_compressed_output', '');
+  const [synthesizedCode, setSynthesizedCode] = useLocalStorage('hermes_pod_synthesized_code', '');
 
   const executePipeline = async () => {
     if (!rawInput.trim()) {
@@ -28,6 +30,7 @@ export const TrainingPod = () => {
     
     setLogs(l => [
       `[ITER_${(iteration+1).toString().padStart(3, '0')}] Initializing RE-TRAC Protocol...`,
+      `> Mode: ${mode}`,
       `> Isolating causal nodes in payload (${rawInput.length} bytes)`,
       `> Contacting Atropos Shear micro-service at ${shearRate}% aggression...`,
       ...l
@@ -37,7 +40,7 @@ export const TrainingPod = () => {
       const response = await fetch('/api/re-trac', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rawData: rawInput })
+        body: JSON.stringify({ rawData: rawInput, mode })
       });
       
       const data = await response.json();
@@ -80,7 +83,7 @@ export const TrainingPod = () => {
     setSynthesizedCode('');
     setLogs(l => [
       `[VULCAN] Initializing Expansion Synthesis Engine...`,
-      `> Translating pure mathematical constraints into physical architecture.`,
+      `> Translating pure mathematical constraints into physical architecture: ${targetArchitecture}`,
       ...l
     ].slice(0, 50));
 
@@ -105,7 +108,31 @@ export const TrainingPod = () => {
         ]
       };
 
-      const bindingContract = targetArchitecture === 'python-pandas' ? pythonContract : nodeContract;
+      const folContract = {
+        target_language: "fol",
+        runtime_environment: "pure_symbolic_reasoner",
+        constraints: [
+          "use_standard_fol_notation",
+          "identify_all_quantifiers",
+          "strictly_symbolic"
+        ]
+      };
+
+      const pytorchContract = {
+        target_language: "python",
+        runtime_environment: "pytorch_neurosymbolic_hybrid",
+        constraints: [
+          "integrate_symbolic_constraints_into_loss_function",
+          "use_tensors_for_state_representation",
+          "O(B * N) complexity"
+        ]
+      };
+
+      let bindingContract;
+      if (targetArchitecture === 'python-pandas') bindingContract = pythonContract;
+      else if (targetArchitecture === 'node-redis') bindingContract = nodeContract;
+      else if (targetArchitecture === 'pure-fol') bindingContract = folContract;
+      else if (targetArchitecture === 'pytorch-hybrid') bindingContract = pytorchContract;
 
       const response = await fetch('/api/synthesize', {
         method: 'POST',
@@ -149,6 +176,19 @@ export const TrainingPod = () => {
           </div>
 
           <div className="space-y-8">
+            <div className="space-y-3">
+              <label className="text-[10px] font-mono text-[#8c8c85] uppercase tracking-widest">RE-TRAC Mode</label>
+              <select 
+                value={mode}
+                onChange={(e) => setMode(e.target.value as any)}
+                className="w-full bg-[#0a0a0a] border border-[#2a2a24] text-[#e6e6e3] font-mono text-[11px] p-2 focus:outline-none focus:border-[#b49e6f]/50 cursor-pointer appearance-none"
+              >
+                <option value="Prevention">Prevention (Temporal/Graph)</option>
+                <option value="Research">Research (Relational/Knowledge)</option>
+                <option value="Compaction">Compaction (Boolean/Info Theory)</option>
+              </select>
+            </div>
+
             <div className="space-y-3">
               <div className="flex justify-between items-end">
                 <label className="text-[10px] font-mono text-[#8c8c85] uppercase tracking-widest">Atropos Shear Rate</label>
@@ -244,11 +284,13 @@ export const TrainingPod = () => {
                 <label className="text-[10px] font-mono text-cyan-500 uppercase tracking-widest">Target Architecture</label>
                 <select 
                   value={targetArchitecture}
-                  onChange={(e) => setTargetArchitecture(e.target.value as "node-redis" | "python-pandas")}
+                  onChange={(e) => setTargetArchitecture(e.target.value as any)}
                   className="w-full bg-[#0a0a0a] border border-cyan-500/30 text-[#e6e6e3] font-mono text-[11px] p-2 focus:outline-none focus:border-cyan-500 cursor-pointer appearance-none"
                 >
                   <option value="node-redis">Real-Time Streaming (Node/Redis)</option>
                   <option value="python-pandas">Batch Data Science (Python/Pandas)</option>
+                  <option value="pure-fol">Pure Symbolic (FOL)</option>
+                  <option value="pytorch-hybrid">Neurosymbolic Hybrid (PyTorch)</option>
                 </select>
               </div>
 

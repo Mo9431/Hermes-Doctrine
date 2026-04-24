@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { Database, Shield, Activity, ChevronDown, ChevronUp, Code2, Cpu, Trash2, RefreshCw, Scissors } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Database, Shield, Activity, ChevronDown, ChevronUp, Code2, Cpu, Trash2, RefreshCw, Scissors, Folder, FolderOpen, ChevronRight, FileCode, GripVertical, Plus } from 'lucide-react';
 
 interface Skill {
   id: string;
+  folderId: string;
   name: string;
   domain: string;
   incidentReport: string;
@@ -11,108 +12,18 @@ interface Skill {
   language: string;
 }
 
-const mockData = {
-  parentPattern: "Sybil_Aggregation_Rotation",
-  clauses: [
-    "Identity Disjointness",
-    "Shared Sink",
-    "Sub-Threshold Actions",
-    "Coordinated Timing",
-    "Orchestrated Sequence",
-    "Signal Manipulation"
-  ],
-  children: [
-    {
-      id: "sk_1",
-      name: "Crypto_Sybil_Swarm",
-      domain: "Crypto",
-      incidentReport: "Multiple fresh wallets deposit exact sub-threshold amounts to a central exchange address within a narrow time window.",
-      fol: "∀w_i, w_j ∈ W: (addr(w_i) ≠ addr(w_j)) ∧ (sink(w_i) = sink(w_j)) ∧ (val(w_i) < τ)",
-      code: "function detectSybilSwarm(deposits) { return false; } // Simplified for dashboard",
-      language: "typescript"
-    },
-    {
-      id: "sk_2",
-      name: "Ticketmaster_Cart_Hold",
-      domain: "E-Commerce",
-      incidentReport: "User A places tickets in cart. Drops them precisely 1 second before expiration. User B immediately picks them up.",
-      fol: "∃t_a, t_b: (user(t_a) ≠ user(t_b)) ∧ (|time_drop(t_a) - time_add(t_b)| < δ)",
-      code: "function detectCartDaisyChain(events, delta) { return false; } // Simplified for dashboard",
-      language: "typescript"
-    },
-    {
-      id: "sk_3",
-      name: "AML_Smurf_Structuring",
-      domain: "Finance",
-      incidentReport: "Multiple individuals use different IDs but share the same address/last name to deposit $9,500 each, avoiding the $10k reporting limit. Funds are immediately wired out.",
-      fol: "∀x (AML(x) → ∃y Structuring(x,y))",
-      code: `import pandas as pd
-from collections import defaultdict
+interface FolderType {
+  id: string;
+  name: string;
+  parentId: string | null;
+}
 
-def detect_coordinated_mule_activity(deposits: pd.DataFrame, outbounds: pd.DataFrame) -> bool:
-    deposits_filtered = deposits[deposits['amount'] == 9500].copy()
-    if len(deposits_filtered) < 2: return False
-    
-    outbounds_filtered = outbounds.copy()
-    if len(outbounds_filtered) == 0: return False
-    
-    deposits_filtered = deposits_filtered.sort_values('time').reset_index(drop=True)
-    outbounds_filtered = outbounds_filtered.sort_values('time').reset_index(drop=True)
-    outbound_times = outbounds_filtered['time'].tolist()
-    outbound_amounts = outbounds_filtered['amount'].tolist()
-    
-    left = 0
-    actor_freq = defaultdict(int)
-    address_freq = defaultdict(int)
-    last_name_freq = defaultdict(int)
-    actor_count = address_count = last_name_count = outbound_idx = 0
-    n = len(deposits_filtered)
-    
-    for right in range(n):
-        row = deposits_filtered.iloc[right]
-        actor, addr, lname = row['actor'], row['address'], row['last_name']
-        
-        actor_freq[actor] += 1
-        if actor_freq[actor] == 1:
-            actor_count += 1
-            address_freq[addr] += 1
-            if address_freq[addr] == 1: address_count += 1
-            last_name_freq[lname] += 1
-            if last_name_freq[lname] == 1: last_name_count += 1
-            
-        while left <= right and (deposits_filtered.iloc[right]['time'] - deposits_filtered.iloc[left]['time'] > 24):
-            l_row = deposits_filtered.iloc[left]
-            l_actor, l_addr, l_lname = l_row['actor'], l_row['address'], l_row['last_name']
-            
-            actor_freq[l_actor] -= 1
-            if actor_freq[l_actor] == 0:
-                actor_count -= 1
-                address_freq[l_addr] -= 1
-                if address_freq[l_addr] == 0: address_count -= 1
-                last_name_freq[l_lname] -= 1
-                if last_name_freq[l_lname] == 0: last_name_count -= 1
-            left += 1
-            
-        max_time = deposits_filtered.iloc[right]['time']
-        window_sum = actor_count * 9500
-        
-        # STRICT IDENTITY BINDING
-        if actor_count < 2 or address_count != actor_count or last_name_count != actor_count:
-            continue
-            
-        while outbound_idx < len(outbound_times) and outbound_times[outbound_idx] <= max_time:
-            outbound_idx += 1
-            
-        if (outbound_idx < len(outbound_times) and
-            outbound_times[outbound_idx] <= max_time + 2 and
-            outbound_amounts[outbound_idx] == window_sum):
-            return True
-            
-    return False`,
-      language: "python"
-    }
-  ]
-};
+interface GrimoireData {
+  parentPattern: string;
+  clauses: string[];
+  folders: FolderType[];
+  skills: Skill[];
+}
 
 const SkillCard: React.FC<{ skill: any; onPrune: () => void }> = ({ skill, onPrune }) => {
   const [expanded, setExpanded] = useState(false);
@@ -181,9 +92,10 @@ const SkillCard: React.FC<{ skill: any; onPrune: () => void }> = ({ skill, onPru
 };
 
 export const GrimoireDashboard = () => {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<GrimoireData | null>(null);
   const [organizing, setOrganizing] = useState(false);
   const [organizeResult, setOrganizeResult] = useState<any>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<string>('unsorted');
 
   const loadGrimoire = () => {
     fetch('/api/grimoire')
@@ -195,7 +107,7 @@ export const GrimoireDashboard = () => {
       .catch(console.error);
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     loadGrimoire();
   }, []);
 
@@ -247,84 +159,137 @@ export const GrimoireDashboard = () => {
     }
   };
 
+  const handleDragStart = (e: React.DragEvent, skillId: string) => {
+    e.dataTransfer.setData('skillId', skillId);
+  };
+
+  const handleDrop = async (e: React.DragEvent, folderId: string) => {
+    e.preventDefault();
+    const skillId = e.dataTransfer.getData('skillId');
+    if (!skillId) return;
+
+    try {
+      const res = await fetch(`/api/grimoire/skills/${skillId}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId })
+      });
+      if (res.ok) {
+        loadGrimoire();
+      }
+    } catch (err) {
+      console.error('Move error:', err);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleCreateFolder = async () => {
+    const name = prompt('Folder name:');
+    if (!name) return;
+
+    try {
+      const res = await fetch('/api/grimoire/folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, parentId: selectedFolderId === 'unsorted' ? null : selectedFolderId })
+      });
+      if (res.ok) {
+        loadGrimoire();
+      }
+    } catch (err) {
+      console.error('Create folder error:', err);
+    }
+  };
+
   if (!data) return <div className="text-white p-4 font-mono text-xs">Loading FTS5...</div>;
+
+  const filteredSkills = data.skills.filter(s => s.folderId === selectedFolderId);
 
   return (
     <div className="flex flex-col h-full w-full gap-6">
-      {/* Organize/Prune Controls */}
-      <div className="flex items-center justify-between p-4 bg-[#0a0a0a] border border-[#2a2a24] rounded-sm">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={handleOrganize}
-            disabled={organizing}
-            className="flex items-center gap-2 px-4 py-2 bg-[#b49e6f]/10 border border-[#b49e6f]/30 text-[#b49e6f] text-[10px] font-mono uppercase tracking-widest hover:bg-[#b49e6f]/20 transition-all disabled:opacity-50"
-          >
-            {organizing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Scissors className="w-3 h-3" />}
-            {organizing ? 'Analyzing...' : 'Atropos Shear'}
-          </button>
-          <button
-            onClick={handleClear}
-            className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-500/70 text-[10px] font-mono uppercase tracking-widest hover:bg-red-500/20 hover:text-red-500 transition-all"
-          >
-            <Trash2 className="w-3 h-3" />
-            Clear All
-          </button>
-        </div>
-        <div className="text-[10px] font-mono text-[#8c8c85]">
-          {data.children.length} skills in memory
-        </div>
-      </div>
-
-      {/* Organize Result */}
-      {organizeResult && (
-        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-sm">
-          <div className="text-[10px] font-mono text-emerald-500">
-            Atropos Shear Results: Pruned {organizeResult.prunedCount} skills. Reason: {organizeResult.reason}
+      <div className="flex h-full gap-6 overflow-hidden">
+        {/* Sidebar Explorer */}
+        <div className="w-64 flex flex-col bg-[#0a0a0a] border border-[#2a2a24] rounded-sm overflow-hidden">
+          <div className="p-4 border-b border-[#2a2a24] bg-[#121212] flex justify-between items-center">
+            <h3 className="text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-[#8c8c85] flex items-center gap-2">
+              <Folder className="w-3 h-3" /> Skill Explorer
+            </h3>
+            <button onClick={handleCreateFolder} className="text-[#8c8c85] hover:text-[#b49e6f]" title="New Folder">
+              <Plus size={14} />
+            </button>
           </div>
-        </div>
-      )}
-
-      {/* Header Level 1 */}
-      <div className="p-6 bg-[#0a0a0a] border border-[#b49e6f]/30 rounded-sm drop-shadow-[0_0_15px_rgba(180,158,111,0.05)] relative overflow-hidden">
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(180,158,111,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(180,158,111,0.02)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none z-0" />
-        
-        <div className="relative z-10">
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-xl font-mono font-bold uppercase tracking-[0.2em] text-[#b49e6f] flex items-center gap-3">
-              <Database className="w-6 h-6" />
-              Intelligence Pattern: {data.parentPattern}
-            </h1>
-            <span className="px-3 py-1 bg-[#121212] border border-[#2a2a24] rounded-sm text-[10px] font-mono text-[#8c8c85] tracking-widest uppercase">
-              Level 1 Abstraction
-            </span>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            {data.clauses.map((clause: string, idx: number) => (
-              <div key={idx} className="flex items-center gap-3 bg-[#121212] border border-[#2a2a24] rounded-sm p-3">
-                <span className="text-[#b49e6f] font-mono text-[10px] opacity-50">{(idx + 1).toString().padStart(2, '0')}</span>
-                <span className="text-[11px] font-mono text-[#e6e6e3] uppercase tracking-wider">{clause}</span>
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {data.folders.map(folder => (
+              <div
+                key={folder.id}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, folder.id)}
+                onClick={() => setSelectedFolderId(folder.id)}
+                className={`flex items-center gap-2 p-2 rounded-sm cursor-pointer transition-all ${
+                  selectedFolderId === folder.id 
+                    ? 'bg-[#b49e6f]/20 border border-[#b49e6f]/30 text-[#b49e6f]' 
+                    : 'text-[#8c8c85] hover:bg-[#121212] border border-transparent'
+                }`}
+              >
+                {selectedFolderId === folder.id ? <FolderOpen className="w-4 h-4" /> : <Folder className="w-4 h-4" />}
+                <span className="text-xs font-mono">{folder.name}</span>
+                <span className="ml-auto text-[10px] opacity-50">
+                  {data.skills.filter(s => s.folderId === folder.id).length}
+                </span>
               </div>
             ))}
           </div>
         </div>
-      </div>
 
-      {/* Children Cards Level 2 */}
-      <div className="flex-1 overflow-y-auto scrollbar-none pr-2 flex flex-col gap-2 min-h-0">
-        <h2 className="text-[10px] font-mono font-bold uppercase tracking-[0.3em] text-[#8c8c85] mb-2 flex items-center gap-2 flex-shrink-0">
-          <Shield className="w-4 h-4 text-[#8c8c85]" /> Verified Implementations (Level 2)
-        </h2>
-        
-        <div className="flex-1 min-h-0 overflow-y-auto pb-12">
-          {data.children.map((skill: any) => (
-            <SkillCard key={skill.id} skill={skill} onPrune={() => handlePrune(skill.id)} />
-          ))}
-          {data.children.length === 0 && (
-            <div className="text-center py-12 text-[#8c8c85] font-mono text-xs">
-              No skills in memory. Use RE-TRAC to compress trajectories or configure the Workshop domain.
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col gap-6 overflow-hidden">
+          {/* Organize/Prune Controls */}
+          <div className="flex items-center justify-between p-4 bg-[#0a0a0a] border border-[#2a2a24] rounded-sm">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleOrganize}
+                disabled={organizing}
+                className="flex items-center gap-2 px-4 py-2 bg-[#b49e6f]/10 border border-[#b49e6f]/30 text-[#b49e6f] text-[10px] font-mono uppercase tracking-widest hover:bg-[#b49e6f]/20 transition-all disabled:opacity-50"
+              >
+                {organizing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Scissors className="w-3 h-3" />}
+                {organizing ? 'Analyzing...' : 'Atropos Shear'}
+              </button>
+              <button
+                onClick={handleClear}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-500/70 text-[10px] font-mono uppercase tracking-widest hover:bg-red-500/20 hover:text-red-500 transition-all"
+              >
+                <Trash2 className="w-3 h-3" />
+                Clear All
+              </button>
             </div>
-          )}
+            <div className="text-[10px] font-mono text-[#8c8c85]">
+              {data.skills.length} skills in memory
+            </div>
+          </div>
+
+          {/* Children Cards Level 2 */}
+          <div className="flex-1 overflow-hidden flex flex-col gap-2 min-h-0">
+            <h2 className="text-[10px] font-mono font-bold uppercase tracking-[0.3em] text-[#8c8c85] mb-2 flex items-center gap-2 flex-shrink-0">
+              <Shield className="w-4 h-4 text-[#8c8c85]" /> 
+              {data.folders.find(f => f.id === selectedFolderId)?.name} / Verified Implementations
+            </h2>
+            
+            <div className="flex-1 overflow-y-auto pb-12 scrollbar-none">
+              {filteredSkills.map((skill: any) => (
+                <div key={skill.id} draggable onDragStart={(e) => handleDragStart(e, skill.id)}>
+                  <SkillCard skill={skill} onPrune={() => handlePrune(skill.id)} />
+                </div>
+              ))}
+              {filteredSkills.length === 0 && (
+                <div className="text-center py-12 text-[#8c8c85] font-mono text-xs border border-dashed border-[#2a2a24] rounded-sm">
+                  Folder is empty. Drag skills here to organize.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
