@@ -27,55 +27,112 @@ Operating Hermes requires thinking structurally. You are not writing code; you a
 
 ---
 
-## Expanding the Intelligence Matrix (Adding New Domains)
+## The Hermes Workshop (Domain Configuration)
 
-Hermes is designed to seamlessly integrate new operational domains (e.g., Healthcare Fraud, High-Frequency Trading Manipulation, Supply Chain Exploits). 
+The **Workshop** is the new central configuration hub for the Hermes system. It replaces manual code editing for domain expansion.
 
-### Method 1: Dynamic Spawning (Via API)
+### Accessing the Workshop
+Navigate to the **Workshop** tab in the sidebar ( wrench icon). This UI allows you to:
+- Configure the operational domain (e.g., Healthcare, Finance, Supply Chain)
+- Define the Parent Abstraction Pattern name
+- Set the domain context description
+- Manage the pattern clauses that define what the system looks for
 
-You can dynamically inject new incidents for evaluation in a new domain without modifying core code. The system will auto-spawn Level-2 cards on the dashboard.
+### Configuring New Domains
 
-1. **Craft the Payload:** Describe the incident clearly and extract its FOL.
-2. **Submit to Router:** Send a POST request to `/api/classify-pattern`.
-   ```json
-   {
-     "domain": "Healthcare",
-     "incidentReport": "Multiple unrelated patients claiming maximum physical therapy hours at the exact same out-of-network clinic within hours of each other.",
-     "fol": "∃c ∈ Clinics, ∃S ⊆ Patients, ∃δ (δ ≤ 24hr), ∀p ∈ S: [claim(p, c, max_hrs)] ∧ |S| ≥ 5",
-     "symbols": { ... }
-   }
-   ```
-3. **Observe Grimoire:** The Skill Grimoire UI will automatically map this under its parent abstraction and bind it to the "Healthcare" domain tag.
+1. **Open the Workshop** from the sidebar navigation.
+2. **Update the Domain Name**: Enter your target domain (e.g., "Healthcare Fraud Detection").
+3. **Define the Parent Pattern**: Name your Level-1 abstraction (e.g., "Temporal_Claim_Cluster").
+4. **Write the Context**: Describe what patterns you're targeting.
+5. **Add Pattern Clauses**: Define the binding criteria (e.g., "Provider Clustering", "Diagnosis Codes", "Time Window", "Billing Anomaly").
+6. **Click "Apply Configuration"** to activate.
 
-### Method 2: Defining New Level-1 Parent Abstractions
+The system will dynamically update all prompts for RE-TRAC, Abstraction Router, and other subsystems.
 
-To define entirely new core patterns (Level-1 abstractions) beyond `Sybil_Aggregation_Rotation`, you must update the foundational intelligence map.
+### Quick Templates
+The Workshop includes preset templates for common domains:
+- **Cyber/Fraud**: Sybil_Aggregation_Rotation (default)
+- **Healthcare**: Temporal_Claim_Cluster
+- **Trading**: Market_Manipulation
+- **Supply Chain**: Fraudulent_Chain
 
-1. **Update the router definition:** Modify the `systemPrompt` in `server.ts` (inside `/api/classify-pattern`) to recognize your new pattern constraint.
-   ```typescript
-   // Example inside server.ts -> /api/classify-pattern
-   const systemPrompt = `You are the Hermes Abstraction Router. Evaluate if the FOL binds to:
-   1. 'Sybil_Aggregation_Rotation' (Disjoint identities, shared sink, temporal clustering)
-   2. 'Temporal_Arbitrage_Exploit' (Exploiting sequential execution delays)
-   ...`;
-   ```
+---
 
-2. **Update the Grimoire Database export:** Modify the `grimoireDatabase` object in `server.ts` to reflect the new parent patterns and their structural clauses.
-   ```typescript
-   export const grimoireDatabase = {
-     parentPattern: "Temporal_Arbitrage_Exploit",
-     clauses: [
-       "Race Condition State",
-       "Time-to-Execution Delta",
-       "Optimistic Parallel Execution"
-     ],
-     children: [ ... ]
-   };
-   ```
+## Agent-Friendly Memory Management
 
-3. **Restart the Server:** Run `npm run dev` to reload the intelligence baseline.
+Hermes provides API endpoints for external agents to manage persistent memory:
+
+### Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/workshop/config` | Read current workshop configuration |
+| POST | `/api/workshop/config` | Update domain/pattern configuration |
+| DELETE | `/api/grimoire/skills/:id` | Prune a specific skill by ID |
+| POST | `/api/grimoire/organize` | Atropos Shear - LLM-powered memory organization |
+| POST | `/api/grimoire/clear` | Clear all skills from memory |
+
+### Using Endpoints (Examples)
+
+**Update Workshop Configuration:**
+```bash
+curl -X POST http://localhost:3000/api/workshop/config \
+  -H "Content-Type: application/json" \
+  -d '{"domain": "Healthcare", "parentPattern": "Temporal_Claim_Cluster", "clauses": ["Provider Clustering", "Time Window", "Billing Anomaly"]}'
+```
+
+**Prune a Specific Skill:**
+```bash
+curl -X DELETE http://localhost:3000/api/grimoire/skills/sk_1
+```
+
+**Organize Memory (Atropos Shear):**
+```bash
+curl -X POST http://localhost:3000/api/grimoire/organize \
+  -H "Content-Type: application/json" \
+  -d '{"aggression": 0.3}'
+```
+
+**Clear All Memory:**
+```bash
+curl -X POST http://localhost:3000/api/grimoire/clear
+```
+
+---
+
+## Grimoire UI Memory Controls
+
+The Skill Grimoire dashboard includes built-in controls:
+
+- **Atropos Shear Button**: Triggers the LLM-powered organization endpoint to identify and remove redundant/low-alignment skills.
+- **Clear All Button**: Removes all skills from memory (with confirmation).
+- **Per-Skill Prune Icons**: Each skill card has a trash icon to remove individual skills.
+
+---
 
 ## Troubleshooting
 
 - **LLM Cascade Failures:** Check `.env` keys. If you receive a cascade failure for structured generation (`[ZOD VALIDATION FAILED]`), the model failed to output pure JSON. The system has regex fallbacks, but ensure prompts forcefully demand valid JSON shapes without markdown framing.
 - **Vulcan Overload ("raise NotImplementedError"):** Complex multi-variable calculus or ambiguous temporal logic in the FOL will cause Vulcan safety fallbacks to trigger. You must simplify the FOL or explicitly command a structural mapping (e.g., FTS5 direct map).
+- **Workshop Config Not Applying:** Ensure you're calling `POST /api/workshop/config` with valid JSON. The response should include `"status": "updated"`.
+
+---
+
+## Legacy Expansion (Manual Code Edit)
+
+For advanced customization beyond the Workshop UI, you can still edit `server.ts` directly:
+
+1. **Update the router definition:** Modify the `workshopConfig` object at the top of `server.ts`.
+2. **Customize system prompts:** The dynamic prompts use template literals that inject `workshopConfig.domain`, `workshopConfig.context`, etc.
+3. **Restart the Server:** Run `npm run dev` to reload the intelligence baseline.
+
+Example manual config in `server.ts`:
+```typescript
+let workshopConfig: WorkshopConfig = {
+  domain: "Custom Domain",
+  context: "Your domain context here...",
+  parentPattern: "Your_Pattern_Name",
+  clauses: ["Clause 1", "Clause 2", "..."],
+  description: "What this pattern detects."
+};
+```

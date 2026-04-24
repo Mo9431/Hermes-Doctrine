@@ -8,7 +8,8 @@ import {
   Waypoints, 
   Cpu, 
   Zap,
-  BookOpen
+  BookOpen,
+  Wrench
 } from 'lucide-react';
 import { ViewMode } from '../types';
 
@@ -23,7 +24,7 @@ export const Sidebar = ({ activeView, onViewChange }: SidebarProps) => {
       <div className="p-6 border-b border-[#2a2a24]">
         <div className="hidden md:flex flex-col">
           <span className="text-[10px] font-mono tracking-[0.2em] text-[#8c8c85] uppercase mb-1">Infrastructure V.7</span>
-          <span className="text-lg font-serif italic text-[#b49e6f]">Hermes Doctrine</span>
+          <span className="text-lg font-serif italic text-[#b49e6f]">Hermes Workshop</span>
         </div>
       </div>
 
@@ -34,6 +35,7 @@ export const Sidebar = ({ activeView, onViewChange }: SidebarProps) => {
         <NavItem disabled icon={<Waypoints />} label="Trajectories [Locked]" />
         <NavItem disabled icon={<Terminal />} label="Dialectic Log [Locked]" />
         <NavItem disabled={false} icon={<Cpu />} label="Training Pod (Atropos)" active={activeView === 'TRAINING_POD'} onClick={() => onViewChange('TRAINING_POD')} />
+        <NavItem disabled={false} icon={<Wrench />} label="Workshop" active={activeView === 'WORKSHOP'} onClick={() => onViewChange('WORKSHOP')} />
       </div>
 
       <div className="p-6 border-t border-[#2a2a24] mt-auto">

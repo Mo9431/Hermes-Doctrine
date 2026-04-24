@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Database, Shield, Activity, ChevronDown, ChevronUp, Code2, Cpu } from 'lucide-react';
+import { Database, Shield, Activity, ChevronDown, ChevronUp, Code2, Cpu, Trash2, RefreshCw, Scissors } from 'lucide-react';
 
 interface Skill {
   id: string;
@@ -114,7 +114,7 @@ def detect_coordinated_mule_activity(deposits: pd.DataFrame, outbounds: pd.DataF
   ]
 };
 
-const SkillCard: React.FC<{ skill: any }> = ({ skill }) => {
+const SkillCard: React.FC<{ skill: any; onPrune: () => void }> = ({ skill, onPrune }) => {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -126,12 +126,21 @@ const SkillCard: React.FC<{ skill: any }> = ({ skill }) => {
           </span>
           <h3 className="font-mono text-[12px] font-bold text-[#e6e6e3] tracking-wider">{skill.name}</h3>
         </div>
-        <button 
-          onClick={() => setExpanded(!expanded)}
-          className="text-[#8c8c85] hover:text-[#b49e6f] transition-colors"
-        >
-          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onPrune}
+            className="p-2 text-red-500/50 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
+            title="Prune skill"
+          >
+            <Trash2 size={14} />
+          </button>
+          <button 
+            onClick={() => setExpanded(!expanded)}
+            className="text-[#8c8c85] hover:text-[#b49e6f] transition-colors"
+          >
+            {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+        </div>
       </div>
 
       {expanded && (
@@ -173,18 +182,108 @@ const SkillCard: React.FC<{ skill: any }> = ({ skill }) => {
 
 export const GrimoireDashboard = () => {
   const [data, setData] = useState<any>(null);
+  const [organizing, setOrganizing] = useState(false);
+  const [organizeResult, setOrganizeResult] = useState<any>(null);
 
-  React.useEffect(() => {
+  const loadGrimoire = () => {
     fetch('/api/grimoire')
       .then(res => res.json())
-      .then(d => setData(d))
+      .then(d => {
+        setData(d);
+        setOrganizeResult(null);
+      })
       .catch(console.error);
+  };
+
+  React.useEffect(() => {
+    loadGrimoire();
   }, []);
+
+  const handlePrune = async (skillId: string) => {
+    if (!confirm('Prune this skill from memory?')) return;
+    
+    try {
+      const res = await fetch(`/api/grimoire/skills/${skillId}`, { method: 'DELETE' });
+      const result = await res.json();
+      
+      if (res.ok) {
+        loadGrimoire();
+      } else {
+        alert(result.error || 'Failed to prune skill');
+      }
+    } catch (err) {
+      console.error('Prune error:', err);
+    }
+  };
+
+  const handleOrganize = async () => {
+    setOrganizing(true);
+    setOrganizeResult(null);
+    
+    try {
+      const res = await fetch('/api/grimoire/organize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aggression: 0.3 })
+      });
+      const result = await res.json();
+      setOrganizeResult(result);
+      loadGrimoire();
+    } catch (err) {
+      console.error('Organize error:', err);
+    } finally {
+      setOrganizing(false);
+    }
+  };
+
+  const handleClear = async () => {
+    if (!confirm('Clear ALL skills from memory? This cannot be undone.')) return;
+    
+    try {
+      await fetch('/api/grimoire/clear', { method: 'POST' });
+      loadGrimoire();
+    } catch (err) {
+      console.error('Clear error:', err);
+    }
+  };
 
   if (!data) return <div className="text-white p-4 font-mono text-xs">Loading FTS5...</div>;
 
   return (
     <div className="flex flex-col h-full w-full gap-6">
+      {/* Organize/Prune Controls */}
+      <div className="flex items-center justify-between p-4 bg-[#0a0a0a] border border-[#2a2a24] rounded-sm">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleOrganize}
+            disabled={organizing}
+            className="flex items-center gap-2 px-4 py-2 bg-[#b49e6f]/10 border border-[#b49e6f]/30 text-[#b49e6f] text-[10px] font-mono uppercase tracking-widest hover:bg-[#b49e6f]/20 transition-all disabled:opacity-50"
+          >
+            {organizing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Scissors className="w-3 h-3" />}
+            {organizing ? 'Analyzing...' : 'Atropos Shear'}
+          </button>
+          <button
+            onClick={handleClear}
+            className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-500/70 text-[10px] font-mono uppercase tracking-widest hover:bg-red-500/20 hover:text-red-500 transition-all"
+          >
+            <Trash2 className="w-3 h-3" />
+            Clear All
+          </button>
+        </div>
+        <div className="text-[10px] font-mono text-[#8c8c85]">
+          {data.children.length} skills in memory
+        </div>
+      </div>
+
+      {/* Organize Result */}
+      {organizeResult && (
+        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-sm">
+          <div className="text-[10px] font-mono text-emerald-500">
+            Atropos Shear Results: Pruned {organizeResult.prunedCount} skills. Reason: {organizeResult.reason}
+          </div>
+        </div>
+      )}
+
       {/* Header Level 1 */}
       <div className="p-6 bg-[#0a0a0a] border border-[#b49e6f]/30 rounded-sm drop-shadow-[0_0_15px_rgba(180,158,111,0.05)] relative overflow-hidden">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(180,158,111,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(180,158,111,0.02)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none z-0" />
@@ -219,8 +318,13 @@ export const GrimoireDashboard = () => {
         
         <div className="flex-1 min-h-0 overflow-y-auto pb-12">
           {data.children.map((skill: any) => (
-            <SkillCard key={skill.id} skill={skill} />
+            <SkillCard key={skill.id} skill={skill} onPrune={() => handlePrune(skill.id)} />
           ))}
+          {data.children.length === 0 && (
+            <div className="text-center py-12 text-[#8c8c85] font-mono text-xs">
+              No skills in memory. Use RE-TRAC to compress trajectories or configure the Workshop domain.
+            </div>
+          )}
         </div>
       </div>
     </div>
