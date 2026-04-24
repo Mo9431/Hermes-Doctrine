@@ -738,7 +738,7 @@ Return JSON: {"prune_ids": ["id1", "id2", ...], "reason": "brief explanation"}`;
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, host: "0.0.0.0" },
       appType: "spa",
     });
     app.use(vite.middlewares);
