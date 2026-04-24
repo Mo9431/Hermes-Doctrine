@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DOCTRINE_SECTIONS } from '../data/doctrine';
 import { BookOpen, ChevronRight, Hash, Terminal, Send } from 'lucide-react';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 export const KnowledgeHub = () => {
   const [activeSectionId, setActiveSectionId] = useState(DOCTRINE_SECTIONS[0].id);
   const [chatInput, setChatInput] = useState('');
-  const [messages, setMessages] = useState<{role: 'user'|'assistant', text: string}[]>([
+  const [messages, setMessages] = useLocalStorage<{role: 'user'|'assistant', text: string}[]>('hermes_architect_messages', [
     { role: 'assistant', text: "Hermes Architect online. State your dialectic query." }
   ]);
   const [isTyping, setIsTyping] = useState(false);

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Save, RefreshCw, AlertCircle } from 'lucide-react';
+import { Settings, Save, RefreshCw, AlertCircle, Wand2 } from 'lucide-react';
 import { WorkshopConfig } from '../types';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 export const WorkshopView = () => {
-  const [config, setConfig] = useState<WorkshopConfig>({
+  const [config, setConfig] = useLocalStorage<WorkshopConfig>('hermes_workshop_config', {
     domain: "Cybersecurity & Fraud Detection",
     context: "Focus on identifying coordinated attacks, identity fraud, and financial crimes where actors appear disjoint but target a shared sink within tight temporal windows.",
     parentPattern: "Sybil_Aggregation_Rotation",
@@ -20,8 +21,11 @@ export const WorkshopView = () => {
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [parsing, setParsing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [newClause, setNewClause] = useState('');
+  const [architectInput, setArchitectInput] = useLocalStorage('hermes_workshop_architect_input', '');
+  const [architectMode, setArchitectMode] = useLocalStorage<'Prevention' | 'Research' | 'Compaction'>('hermes_workshop_architect_mode', 'Research');
 
   useEffect(() => {
     fetch('/api/workshop/config')
@@ -32,9 +36,39 @@ export const WorkshopView = () => {
       })
       .catch(err => {
         setLoading(false);
-        setMessage({ type: 'error', text: 'Failed to load workshop config' });
+        // Fallback to local storage if API fails, which is already handled by useLocalStorage
+        console.warn('Failed to load workshop config from server, using local state.');
       });
   }, []);
+
+  const handleArchitectParse = async () => {
+    if (!architectInput.trim()) return;
+    setParsing(true);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/architect-parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: architectInput, mode: architectMode })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      setConfig({
+        domain: data.domainName,
+        parentPattern: data.parentPatternName,
+        context: data.domainContext,
+        description: data.patternDescription,
+        clauses: data.clauses
+      });
+      setArchitectInput('');
+      setMessage({ type: 'success', text: 'Architect successfully parsed input and updated configuration.' });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: `Architect Parse Failed: ${err.message}` });
+    } finally {
+      setParsing(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -85,15 +119,57 @@ export const WorkshopView = () => {
   return (
     <div className="flex flex-col h-full w-full p-8 gap-8 overflow-y-auto scrollbar-none">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <div className="p-3 bg-[#121212] border border-[#2a2a24] rounded-sm">
-          <Settings className="w-6 h-6 text-[#b49e6f]" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-[#121212] border border-[#2a2a24] rounded-sm">
+            <Settings className="w-6 h-6 text-[#b49e6f]" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-serif italic text-[#e6e6e3]">Hermes Workshop</h1>
+            <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-[#8c8c85]">
+              Configure Domain Context & Parent Abstraction Patterns
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-serif italic text-[#e6e6e3]">Hermes Workshop</h1>
-          <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-[#8c8c85]">
-            Configure Domain Context & Parent Abstraction Patterns
-          </p>
+      </div>
+
+      {/* Architect Parse Tool */}
+      <div className="p-6 bg-[#0a0a0a] border border-[#b49e6f]/30 rounded-sm">
+        <h2 className="text-[10px] font-mono font-bold uppercase tracking-[0.3em] text-[#b49e6f] mb-4 flex items-center gap-2">
+          <Wand2 className="w-4 h-4" />
+          Universal Architect Parser
+        </h2>
+        <div className="flex flex-col gap-4">
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <textarea
+                value={architectInput}
+                onChange={(e) => setArchitectInput(e.target.value)}
+                placeholder="Paste raw research, incident logs, or requirements here for the Architect to parse..."
+                className="w-full bg-[#121212] border border-[#2a2a24] text-[#e6e6e3] font-mono text-xs p-3 focus:outline-none focus:border-[#b49e6f]/50 h-24 resize-none"
+              />
+            </div>
+            <div className="w-64 flex flex-col gap-2">
+              <label className="text-[10px] font-mono text-[#8c8c85] uppercase tracking-widest">Parsing Mode</label>
+              <select 
+                value={architectMode}
+                onChange={(e) => setArchitectMode(e.target.value as any)}
+                className="bg-[#121212] border border-[#2a2a24] text-[#e6e6e3] font-mono text-xs p-3 focus:outline-none focus:border-[#b49e6f]/50 cursor-pointer appearance-none"
+              >
+                <option value="Prevention">Prevention</option>
+                <option value="Research">Research</option>
+                <option value="Compaction">Compaction</option>
+              </select>
+              <button
+                onClick={handleArchitectParse}
+                disabled={parsing || !architectInput.trim()}
+                className="flex-1 bg-[#b49e6f]/10 border border-[#b49e6f]/30 text-[#b49e6f] text-[10px] font-mono uppercase tracking-widest hover:bg-[#b49e6f]/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {parsing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                {parsing ? 'Parsing...' : 'Architect Parse'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
